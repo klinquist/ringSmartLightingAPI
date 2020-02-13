@@ -50,8 +50,8 @@ function Ring(refreshToken) {
         async.waterfall([
             (cb) => {
                 log('...Getting access token');
-                getAccessToken((err, at) => {
-                    if (err || !at) return cb('error getting access token ' + err);
+                getAccessToken((err) => {
+                    if (err) return cb('error getting access token ' + err);
                     return cb();
                 });
             },
@@ -70,8 +70,8 @@ function Ring(refreshToken) {
         async.waterfall([
             (cb) => {
                 log('...Getting access token');
-                getAccessToken((err, at) => {
-                    if (err || !at) return cb('error getting access token ' + err);
+                getAccessToken((err) => {
+                    if (err) return cb('error getting access token ' + err);
                     return cb();
                 });
             },
@@ -95,8 +95,8 @@ function Ring(refreshToken) {
         async.waterfall([
             (cb) => {
                 log('...Getting access token');
-                getAccessToken((err, at) => {
-                    if (err || !at) return cb('error getting access token ' + err);
+                getAccessToken((err) => {
+                    if (err) return cb('error getting access token ' + err);
                     return cb();
                 });
             },
