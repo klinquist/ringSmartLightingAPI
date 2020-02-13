@@ -1,7 +1,10 @@
 const httpPort = 3000;
 const ring = require('./ring/api');
-const ip = require('./ring/utils').myIp;
-const log = require('./ring/utils').log;
+const utils = require('./ring/utils');
+const ip = utils.myIp;
+const log = utils.log;
+const logTimeStart = utils.logTimeStart;
+const logTimeEnd = utils.logTimeEnd;
 
 //This refresh token is only used for the initial request.  Every other request writes a new refresh token to "auth.json"
 const refreshToken = 'PUT_YOUR_REFRESH_TOKEN_HERE';
@@ -54,18 +57,23 @@ const generateHtml = (arr) => {
 
 
 app.get('/devices', (req, res, next) => {
+    logTimeStart('getDevices');
     Ring.getAllLights((err, data) => {
         if (err) return res.status(404).send(err);
         const names = data.map(n => n.name);
         log(`Discovered lights: ${names.join(', ')}`);
+        logTimeEnd('getDevices');
+        Ring.closeSockets();
         res.send(generateHtml(names));
     });
 });
 
 
 app.get('/devices/:deviceName/on', (req, res, next) => {
+    logTimeStart('TurnOn');
     log('Received command to turn on ' + req.params.deviceName);
     turnOn(req.params.deviceName, (err, data) => {
+        logTimeEnd('TurnOn');
         Ring.closeSockets();
         if (err) {
             log('Error turning on "' + req.params.deviceName + '" : ' + err);
@@ -82,8 +90,10 @@ app.get('/devices/:deviceName/on', (req, res, next) => {
 
 
 app.get('/devices/:deviceName/off', (req, res, next) => {
+    logTimeStart('TurnOff');
     log('Received comamnd to turn on ' + req.params.deviceName);
     turnOff(req.params.deviceName, (err, data) => {
+        logTimeEnd('TurnOn');
         Ring.closeSockets();
         if (err) {
             log('Error turning off "' + req.params.deviceName + '" : ' + err);

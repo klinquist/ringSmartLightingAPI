@@ -135,6 +135,7 @@ function Ring(refreshToken) {
     const sockets = {};
 
     const openSocket = (url, cb) => {
+        if (sockets[url]) return cb();
         sockets[url] = io(url, {
             transports: ['websocket']
         });
@@ -151,22 +152,41 @@ function Ring(refreshToken) {
 
 
     this.turnOn = (light, cb) => {
-        if (!sockets[light.socket_url]) return cb('Error - socket not open');
-        const payload = getSwitchPayload(light.zid, light.location_uuid, 'on');
-        log(`...Sending "turn on" payload to light/group name "${light.name}" id ${light.zid}`);
-        send(light.socket_url, payload, cb);
+        async.series([
+            (cb) => {
+                openSocket(light.socket_url, cb);
+            },
+            (cb) => {
+                const payload = getSwitchPayload(light.zid, light.location_uuid, 'on');
+                log(`...Sending "turn on" payload to light/group name "${light.name}" id ${light.zid}`);
+                send(light.socket_url, payload, cb);
+            }
+        ], (err, res) => {
+            if (err) return cb(err);
+            return cb(null, res[1][0]);
+        });
     };
 
     this.turnOff = (light, cb) => {
-        if (!sockets[light.socket_url]) return cb('Error - socket not open');
-        const payload = getSwitchPayload(light.zid, light.location_uuid, 'off');
-        log(`...Sending "turn off" payload to light/group name "${light.name}" id ${light.zid}`);
-        send(light.socket_url, payload, cb);
+        async.series([
+            (cb) => {
+                openSocket(light.socket_url,cb);
+            },
+            (cb) => {
+                const payload = getSwitchPayload(light.zid, light.location_uuid, 'off');
+                log(`...Sending "turn off" payload to light/group name "${light.name}" id ${light.zid}`);
+                send(light.socket_url, payload, cb);
+            }
+        ], (err, res) => {
+            if (err) return cb(err);
+            return cb(null, res[1][0]);
+        });
     };
 
     this.closeSockets = () => {
         for (const k in sockets) {
             sockets[k].close();
+            delete sockets[k];
         }
     };
 

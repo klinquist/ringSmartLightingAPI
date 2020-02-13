@@ -31,3 +31,18 @@ const log = (msg) => {
 };
 exports.log = log;
 exports.myIp = networkInterfaces[0];
+
+
+const logtimer = {};
+const logTimeStart = (key) => {
+    logtimer[key] = Date.now();
+};
+const logTimeEnd = (key) => {
+    if (!logtimer[key]) return log(`Timer for ${key} not found`);
+    const now = Date.now();
+    const length = parseFloat((now - logtimer[key]) / 1000).toFixed(2);
+    log(`Request "${key}" took ${length} seconds.`);
+    delete logtimer[key];
+};
+exports.logTimeStart = logTimeStart;
+exports.logTimeEnd = logTimeEnd;
