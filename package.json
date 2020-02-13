@@ -1,0 +1,17 @@
+{
+  "name": "ringsmartlightingtapi",
+  "version": "1.0.0",
+  "description": "This is an API that reduces the complexity of Ring's own Smart Lighting API. It makes using Ring Smart Lighting easy to integrate with other home automation platforms such as SmartThings and Hubitat.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start":"node index.js"
+  },
+  "author": "Kris Linquist <kris@linquist.net>",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "request": "^2.88.2",
+    "socket.io-client": "^2.3.0"
+  }
+}
