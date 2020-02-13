@@ -10,9 +10,6 @@ const log = require('./utils').log;
 const ua = 'android:com.ringapp:2.0.67(423)';
 
 
-const writeRefreshToken = (authData) => {
-    fs.writeFileSync('./auth.json', JSON.stringify(authData));
-};
 
 
 const getSwitchPayload = (zid, uuid, onOrOff) => {
@@ -38,7 +35,7 @@ const getSwitchPayload = (zid, uuid, onOrOff) => {
 };
 
 
-const getAccesToken = (refreshToken, cb) => {
+exports.getAccesToken = (refreshToken, cb) => {
     const requestObj = {
         method: 'POST',
         uri: 'https://oauth.ring.com/oauth/token',
@@ -53,8 +50,7 @@ const getAccesToken = (refreshToken, cb) => {
     request(requestObj, (err, res, body) => {
         if (body && body.access_token) {
             body.created = Date.now();
-            writeRefreshToken(body);
-            return cb(err, body.access_token);
+            return cb(err, body);
         } else {
             return cb(err);
         }
@@ -107,172 +103,137 @@ const getTicketUrl = (accessToken, locationId, cb) => {
 };
 
 
-function Ring(refreshToken) {
 
-    log('Ring Smart Lighting API by Kris Linquist');
-    let auth, authStr;
-    try {
-        authStr = fs.readFileSync('./auth.json');
-        auth = JSON.parse(authStr);
-    } catch (e) {
+const sockets = {};
 
-    }
+const openSocket = (url, cb) => {
+    if (sockets[url]) return cb();
+    sockets[url] = io(url, {
+        transports: ['websocket']
+    });
+    sockets[url].on('message', (msg) => {
+        sync.processIncomingMessage(url, msg);
+    });
+    sockets[url].on('connect', cb);
+};
 
-    if (!auth || !auth.refresh_token) {
-        if (refreshToken) {
-            log('Using refresh token from init');
-            auth = {
-                refresh_token: refreshToken
-            };
-        } else {
-            throw new Error('Ring Smart Lighting API must be initialized with a refreshToken');
+
+const send = (url, msg, cb) => {
+    sync.send(sockets[url], url, msg, cb);
+};
+
+
+exports.turnOn = (light, cb) => {
+    async.series([
+        (cb) => {
+            openSocket(light.socket_url, cb);
+        },
+        (cb) => {
+            const payload = getSwitchPayload(light.zid, light.location_uuid, 'on');
+            log(`...Sending "turn on" payload to light/group name "${light.name}" id ${light.zid}`);
+            send(light.socket_url, payload, cb);
         }
-    } else {
-        log('Using refresh token from file');
-    }
+    ], (err, res) => {
+        if (err) return cb(err);
+        return cb(null, res[1][0]);
+    });
+};
 
-    this.refreshToken = auth.refresh_token;
-    const sockets = {};
-
-    const openSocket = (url, cb) => {
-        if (sockets[url]) return cb();
-        sockets[url] = io(url, {
-            transports: ['websocket']
-        });
-        sockets[url].on('message', (msg) => {
-            sync.processIncomingMessage(url, msg);
-        });
-        sockets[url].on('connect', cb);
-    };
-
-
-    const send = (url, msg, cb) => {
-        sync.send(sockets[url], url, msg, cb);
-    };
-
-
-    this.turnOn = (light, cb) => {
-        async.series([
-            (cb) => {
-                openSocket(light.socket_url, cb);
-            },
-            (cb) => {
-                const payload = getSwitchPayload(light.zid, light.location_uuid, 'on');
-                log(`...Sending "turn on" payload to light/group name "${light.name}" id ${light.zid}`);
-                send(light.socket_url, payload, cb);
-            }
-        ], (err, res) => {
-            if (err) return cb(err);
-            return cb(null, res[1][0]);
-        });
-    };
-
-    this.turnOff = (light, cb) => {
-        async.series([
-            (cb) => {
-                openSocket(light.socket_url,cb);
-            },
-            (cb) => {
-                const payload = getSwitchPayload(light.zid, light.location_uuid, 'off');
-                log(`...Sending "turn off" payload to light/group name "${light.name}" id ${light.zid}`);
-                send(light.socket_url, payload, cb);
-            }
-        ], (err, res) => {
-            if (err) return cb(err);
-            return cb(null, res[1][0]);
-        });
-    };
-
-    this.closeSockets = () => {
-        for (const k in sockets) {
-            sockets[k].close();
-            delete sockets[k];
+exports.turnOff = (light, cb) => {
+    async.series([
+        (cb) => {
+            openSocket(light.socket_url,cb);
+        },
+        (cb) => {
+            const payload = getSwitchPayload(light.zid, light.location_uuid, 'off');
+            log(`...Sending "turn off" payload to light/group name "${light.name}" id ${light.zid}`);
+            send(light.socket_url, payload, cb);
         }
-    };
+    ], (err, res) => {
+        if (err) return cb(err);
+        return cb(null, res[1][0]);
+    });
+};
 
-    this.getAllLights = (cb) => {
-        const locs = [];
-        const devices = [];
-        let accessToken;
-        async.waterfall([
-            (cb) => {
-                log('...Getting access token');
-                getAccesToken(this.refreshToken, (err, at) => {
-                    if (err || !at) return cb('error getting access token ' + err);
-                    accessToken = at;
+exports.closeSockets = () => {
+    for (const k in sockets) {
+        sockets[k].close();
+        delete sockets[k];
+    }
+};
+
+exports.getAllLights = (accessToken, cb) => {
+    const locs = [];
+    const devices = [];
+
+    async.waterfall([
+        (cb) => {
+            getLocations(accessToken, cb);
+        },
+        (locations, cb) => {
+            async.each(locations, (location, cb) => {
+                log('...Getting getting details for location ' + location.name);
+                getTicketUrl(accessToken, location.location_id, (err, assetData) => {
+                    if (err) return cb(err);
+                    if (!assetData || assetData.error || !assetData.assets) {
+                        log(`...Skipping location ${location.name}: No smart lighting bridges found at this location.`);
+                        return cb();
+                    }
+                    if (assetData.assets.length > 1) {
+                        log('Warning: More than one smart bridge discovered at location. This API currently only supports a single bridge per location.');
+                    }
+                    const locationData = {
+                        name: location.name,
+                        location_id: location.location_id,
+                        url: 'wss://' + assetData.host + '/?authcode=' + assetData.ticket + '&ack=false&EIO=3',
+                        uuid: assetData.assets[0].uuid
+                    };
+                    locs.push(locationData);
+
                     return cb();
                 });
-            },
-            (cb) => {
-                getLocations(accessToken, cb);
-            },
-            (locations, cb) => {
-                async.each(locations, (location, cb) => {
-                    log('...Getting getting details for location ' + location.name);
-                    getTicketUrl(accessToken, location.location_id, (err, assetData) => {
+            }, cb);
+        },
+        (cb) => {
+            if (locs.length == 0) return cb('Error, no smart lighting bridges found in any locations');
+            async.each(locs, (location, cb) => {
+                openSocket(location.url, (err) => {
+                    if (err) return cb(err);
+                    const deviceDiscoverMessage = {
+                        'msg': 'DeviceInfoDocGetList',
+                        'dst': location.uuid,
+                        'seq': 2
+                    };
+                    log('...Sending "discover devices" message for location ' + location.name);
+                    send(location.url, deviceDiscoverMessage, (err, res) => {
                         if (err) return cb(err);
-                        if (!assetData || assetData.error || !assetData.assets) {
-                            log(`...Skipping location ${location.name}: No smart lighting bridges found at this location.`);
+                        if (!res || !res.body) {
+                            log('No smart lighting products found connected to this bridge.');
                             return cb();
                         }
-                        if (assetData.assets.length > 1) {
-                            log('Warning: More than one smart bridge discovered at location. This API currently only supports a single bridge per location.');
-                        }
-                        const locationData = {
-                            name: location.name,
-                            location_id: location.location_id,
-                            url: 'wss://' + assetData.host + '/?authcode=' + assetData.ticket + '&ack=false&EIO=3',
-                            uuid: assetData.assets[0].uuid
-                        };
-                        locs.push(locationData);
-
-                        return cb();
-                    });
-                }, cb);
-            },
-            (cb) => {
-                if (locs.length == 0) return cb('Error, no smart lighting bridges found in any locations');
-                async.each(locs, (location, cb) => {
-                    openSocket(location.url, (err) => {
-                        if (err) return cb(err);
-                        const deviceDiscoverMessage = {
-                            'msg': 'DeviceInfoDocGetList',
-                            'dst': location.uuid,
-                            'seq': 2
-                        };
-                        log('...Sending "discover devices" message for location ' + location.name);
-                        send(location.url, deviceDiscoverMessage, (err, res) => {
-                            if (err) return cb(err);
-                            if (!res || !res.body) {
-                                log('No smart lighting products found connected to this bridge.');
-                                return cb();
-                            }
-                            //Filter the list to only return lights
-                            res.body = res.body.filter(n => {
-                                return n.general['v2'].categoryId == 2;
-                            });
-                            if (res.body.length == 0) {
-                                log('No smart lighting products found connected to this bridge.');
-                                return cb();
-                            }
-                            res.body.forEach(dev => {
-                                const deviceObject = dev.general['v2'];
-                                deviceObject.location_id = location.location_id;
-                                deviceObject.location_uuid = location.uuid;
-                                deviceObject.socket_url = location.url;
-                                deviceObject.location_name = location.name;
-                                devices.push(deviceObject);
-                            });
-                            cb();
+                        //Filter the list to only return lights
+                        res.body = res.body.filter(n => {
+                            return n.general['v2'].categoryId == 2;
                         });
+                        if (res.body.length == 0) {
+                            log('No smart lighting products found connected to this bridge.');
+                            return cb();
+                        }
+                        res.body.forEach(dev => {
+                            const deviceObject = dev.general['v2'];
+                            deviceObject.location_id = location.location_id;
+                            deviceObject.location_uuid = location.uuid;
+                            deviceObject.socket_url = location.url;
+                            deviceObject.location_name = location.name;
+                            devices.push(deviceObject);
+                        });
+                        cb();
                     });
-                }, cb);
-            }
-        ], (err, res) => {
-            if (err) return cb(err);
-            return cb(null, devices);
-        });
-    };
-}
-
-module.exports = Ring;
+                });
+            }, cb);
+        }
+    ], (err, res) => {
+        if (err) return cb(err);
+        return cb(null, devices);
+    });
+};
