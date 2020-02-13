@@ -4,6 +4,7 @@ const fs = require('fs');
 const io = require('socket.io-client');
 const socketsync = require('./socketSync');
 const sync = new socketsync({});
+const log = require('./utils').log;
 
 
 const ua = 'android:com.ringapp:2.0.67(423)';
@@ -108,7 +109,7 @@ const getTicketUrl = (accessToken, locationId, cb) => {
 
 function Ring(refreshToken) {
 
-    console.log('Ring Smart Lighting API by Kris Linquist');
+    log('Ring Smart Lighting API by Kris Linquist');
     let auth, authStr;
     try {
         authStr = fs.readFileSync('./auth.json');
@@ -119,7 +120,7 @@ function Ring(refreshToken) {
 
     if (!auth || !auth.refresh_token) {
         if (refreshToken) {
-            console.log('Using refresh token from init');
+            log('Using refresh token from init');
             auth = {
                 refresh_token: refreshToken
             };
@@ -127,7 +128,7 @@ function Ring(refreshToken) {
             throw new Error('Ring Smart Lighting API must be initialized with a refreshToken');
         }
     } else {
-        console.log('Using refresh token from file');
+        log('Using refresh token from file');
     }
 
     this.refreshToken = auth.refresh_token;
@@ -152,14 +153,14 @@ function Ring(refreshToken) {
     this.turnOn = (light, cb) => {
         if (!sockets[light.socket_url]) return cb('Error - socket not open');
         const payload = getSwitchPayload(light.zid, light.location_uuid, 'on');
-        console.log(`...Sending "turn on" payload to light/group name "${light.name}" id ${light.zid}`);
+        log(`...Sending "turn on" payload to light/group name "${light.name}" id ${light.zid}`);
         send(light.socket_url, payload, cb);
     };
 
     this.turnOff = (light, cb) => {
         if (!sockets[light.socket_url]) return cb('Error - socket not open');
         const payload = getSwitchPayload(light.zid, light.location_uuid, 'off');
-        console.log(`...Sending "turn off" payload to light/group name "${light.name}" id ${light.zid}`);
+        log(`...Sending "turn off" payload to light/group name "${light.name}" id ${light.zid}`);
         send(light.socket_url, payload, cb);
     };
 
@@ -175,7 +176,7 @@ function Ring(refreshToken) {
         let accessToken;
         async.waterfall([
             (cb) => {
-                console.log('...Getting access token');
+                log('...Getting access token');
                 getAccesToken(this.refreshToken, (err, at) => {
                     if (err || !at) return cb('error getting access token ' + err);
                     accessToken = at;
@@ -187,12 +188,15 @@ function Ring(refreshToken) {
             },
             (locations, cb) => {
                 async.each(locations, (location, cb) => {
-                    console.log('...Getting getting details for location ' + location.name);
+                    log('...Getting getting details for location ' + location.name);
                     getTicketUrl(accessToken, location.location_id, (err, assetData) => {
                         if (err) return cb(err);
-                        if (!assetData || assetData.error || !assetData.assets) return cb();
+                        if (!assetData || assetData.error || !assetData.assets) {
+                            log(`...Skipping location ${location.name}: No smart lighting bridges found at this location.`);
+                            return cb();
+                        }
                         if (assetData.assets.length > 1) {
-                            console.log('Warning: More than one smart bridge discovered at location. This API currently only supports a single bridge per location.');
+                            log('Warning: More than one smart bridge discovered at location. This API currently only supports a single bridge per location.');
                         }
                         const locationData = {
                             name: location.name,
@@ -216,11 +220,11 @@ function Ring(refreshToken) {
                             'dst': location.uuid,
                             'seq': 2
                         };
-                        console.log('...Sending "discover devices" message for location ' + location.name);
+                        log('...Sending "discover devices" message for location ' + location.name);
                         send(location.url, deviceDiscoverMessage, (err, res) => {
                             if (err) return cb(err);
                             if (!res || !res.body) {
-                                console.log('No smart lighting products found connected to this bridge.');
+                                log('No smart lighting products found connected to this bridge.');
                                 return cb();
                             }
                             //Filter the list to only return lights
@@ -228,7 +232,7 @@ function Ring(refreshToken) {
                                 return n.general['v2'].categoryId == 2;
                             });
                             if (res.body.length == 0) {
-                                console.log('No smart lighting products found connected to this bridge.');
+                                log('No smart lighting products found connected to this bridge.');
                                 return cb();
                             }
                             res.body.forEach(dev => {

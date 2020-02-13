@@ -14,4 +14,20 @@ var networkInterfaces = Object.values(os.networkInterfaces())
     .map(({
         address
     }) => address);
+
+
+const log = (msg) => {
+    const date_ob = new Date();
+    const date = ('0' + date_ob.getDate()).slice(-2);
+    const month = ('0' + (date_ob.getMonth() + 1)).slice(-2);
+    const year = date_ob.getFullYear();
+    const hours = date_ob.getHours();
+    let minutes = date_ob.getMinutes();
+    if (minutes < 10) minutes = `0${minutes}`;
+    let seconds = date_ob.getSeconds();
+    if (seconds < 10) seconds = `0${seconds}`;
+    const now = year + '-' + month + '-' + date + ' ' + hours + ':' + minutes + ':' + seconds;
+    console.log(`${now} - ${msg}`);
+};
+exports.log = log;
 exports.myIp = networkInterfaces[0];
