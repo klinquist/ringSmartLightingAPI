@@ -36,14 +36,22 @@ function Ring(refreshToken) {
 
     this.refreshToken = auth.refresh_token;
 
+    const getAccessToken = (cb) => {
+        api.getAccesToken(this.refreshToken, (err, at) => {
+            if (err || !at) return cb('error getting access token ' + err);
+            writeRefreshToken(at);
+            this.accessToken = at.access_token;
+            this.refreshToken = at.refresh_token;
+            return cb();
+        });
+    };
+
     this.getAllLights = (cb) => {
         async.waterfall([
             (cb) => {
                 log('...Getting access token');
-                api.getAccesToken(this.refreshToken, (err, at) => {
+                getAccessToken((err, at) => {
                     if (err || !at) return cb('error getting access token ' + err);
-                    writeRefreshToken(at);
-                    this.accessToken = at.access_token;
                     return cb();
                 });
             },
@@ -62,10 +70,8 @@ function Ring(refreshToken) {
         async.waterfall([
             (cb) => {
                 log('...Getting access token');
-                api.getAccesToken(this.refreshToken, (err, at) => {
+                getAccessToken((err, at) => {
                     if (err || !at) return cb('error getting access token ' + err);
-                    writeRefreshToken(at);
-                    this.accessToken = at.access_token;
                     return cb();
                 });
             },
@@ -89,9 +95,8 @@ function Ring(refreshToken) {
         async.waterfall([
             (cb) => {
                 log('...Getting access token');
-                api.getAccesToken(this.refreshToken, (err, at) => {
+                getAccessToken((err, at) => {
                     if (err || !at) return cb('error getting access token ' + err);
-                    this.accessToken = at.access_token;
                     return cb();
                 });
             },
