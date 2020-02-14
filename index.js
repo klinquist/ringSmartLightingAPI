@@ -50,7 +50,7 @@ app.get('/devices', (req, res) => {
 app.get('/devices/:deviceName/on', (req, res) => {
     logTimeStart('TurnOn');
     log('Received command to turn on ' + req.params.deviceName);
-    ringFunctions.turnOn(req.params.deviceName, (err, data) => {
+    ringFunctions.switchLight(req.params.deviceName, 'on', (err, data) => {
         logTimeEnd('TurnOn');
         if (err) {
             log('Error turning on "' + req.params.deviceName + '" : ' + err);
@@ -71,7 +71,7 @@ app.get('/devices/:deviceName/on', (req, res) => {
 app.get('/devices/:deviceName/off', (req, res) => {
     logTimeStart('TurnOff');
     log('Received comamnd to turn on ' + req.params.deviceName);
-    ringFunctions.turnOff(req.params.deviceName, (err, data) => {
+    ringFunctions.switchLight(req.params.deviceName, 'off',  (err, data) => {
         logTimeEnd('TurnOff');
         if (err) {
             log('Error turning off "' + req.params.deviceName + '" : ' + err);
