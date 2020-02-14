@@ -46,14 +46,11 @@ const getAllLights = (accessToken, cb) => {
                         log(`...Skipping location ${location.name}: No smart lighting bridges found at this location.`);
                         return cb();
                     }
-                    if (assetData.assets.length > 1) {
-                        log('Warning: More than one smart bridge discovered at location. This API currently only supports a single bridge per location.');
-                    }
                     const locationData = {
                         name: location.name,
                         location_id: location.location_id,
                         url: 'wss://' + assetData.host + '/?authcode=' + assetData.ticket + '&ack=false&EIO=3',
-                        uuid: assetData.assets[0].uuid
+                        uuids: assetData.assets.map(n=> n.uuid)
                     };
                     locs.push(locationData);
                     return cb();
@@ -65,36 +62,38 @@ const getAllLights = (accessToken, cb) => {
             async.each(locs, (location, cb) => {
                 api.openSocket(location.url, (err) => {
                     if (err) return cb(err);
-                    const deviceDiscoverMessage = {
-                        'msg': 'DeviceInfoDocGetList',
-                        'dst': location.uuid,
-                        'seq': 2
-                    };
-                    log('...Sending "discover devices" message for location ' + location.name);
-                    api.send(location.url, deviceDiscoverMessage, (err, res) => {
-                        if (err) return cb(err);
-                        if (!res || !res.body) {
-                            log('No smart lighting products found connected to this bridge.');
-                            return cb();
-                        }
-                        //Filter the list to only return lights
-                        res.body = res.body.filter(n => {
-                            return n.general['v2'].categoryId == 2;
+                    async.eachSeries(location.uuids, (uuid, cb) => {
+                        const deviceDiscoverMessage = {
+                            'msg': 'DeviceInfoDocGetList',
+                            'dst': uuid,
+                            'seq': 2
+                        };
+                        log(`...Sending "discover devices" message for location ${location.name} - bridge uuid ${uuid}`);
+                        api.send(location.url, deviceDiscoverMessage, (err, res) => {
+                            if (err) return cb(err);
+                            if (!res || !res.body) {
+                                log('No products found connected to this bridge.');
+                                return cb();
+                            }
+                            //Filter the list to only return lights
+                            res.body = res.body.filter(n => {
+                                return n.general['v2'].categoryId == 2;
+                            });
+                            if (res.body.length == 0) {
+                                log('No smart lighting products found connected to this bridge.');
+                                return cb();
+                            }
+                            res.body.forEach(dev => {
+                                const deviceObject = dev.general['v2'];
+                                deviceObject.location_id = location.location_id;
+                                deviceObject.location_uuid = uuid;
+                                deviceObject.socket_url = location.url;
+                                deviceObject.location_name = location.name;
+                                devices.push(deviceObject);
+                            });
+                            cb();
                         });
-                        if (res.body.length == 0) {
-                            log('No smart lighting products found connected to this bridge.');
-                            return cb();
-                        }
-                        res.body.forEach(dev => {
-                            const deviceObject = dev.general['v2'];
-                            deviceObject.location_id = location.location_id;
-                            deviceObject.location_uuid = location.uuid;
-                            deviceObject.socket_url = location.url;
-                            deviceObject.location_name = location.name;
-                            devices.push(deviceObject);
-                        });
-                        cb();
-                    });
+                    }, cb);
                 });
             }, cb);
         }
