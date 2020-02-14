@@ -43,6 +43,7 @@ const logTimeEnd = (key) => {
     const length = parseFloat((now - logtimer[key]) / 1000).toFixed(2);
     log(`Request "${key}" took ${length} seconds.`);
     delete logtimer[key];
+    return length;
 };
 exports.logTimeStart = logTimeStart;
 exports.logTimeEnd = logTimeEnd;

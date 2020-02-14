@@ -41,7 +41,7 @@ exports.getLocations = (accessToken, cb) => {
         if (locations && locations.user_locations) {
             return cb(null, locations.user_locations);
         } else {
-            return cb('Could not get locations');
+            return cb(err);
         }
 
     });
@@ -59,10 +59,11 @@ exports.getTicketUrl = (accessToken, locationId, cb) => {
         }
     };
     request(requestObj, (err, res, tickets) => {
+        if (err) return cb(err);
         if (tickets) {
             return cb(null, tickets);
         } else {
-            return cb('Could not get devices');
+            return cb('no "tickets" found');
         }
 
     });

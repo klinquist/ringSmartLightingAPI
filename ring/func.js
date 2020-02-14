@@ -36,9 +36,7 @@ const getAllLights = (accessToken, cb) => {
     const devices = [];
 
     async.waterfall([
-        (cb) => {
-            api.getLocations(accessToken, cb);
-        },
+        (cb) => api.getLocations(accessToken, cb),
         (locations, cb) => {
             async.each(locations, (location, cb) => {
                 log('...Getting getting details for location ' + location.name);
@@ -108,9 +106,7 @@ const getAllLights = (accessToken, cb) => {
 
 const toggleLight = (light, onOrOff, cb) => {
     async.series([
-        (cb) => {
-            api.openSocket(light.socket_url, cb);
-        },
+        (cb) => api.openSocket(light.socket_url, cb),
         (cb) => {
             const payload = getSwitchPayload(light.zid, light.location_uuid, onOrOff);
             log(`...Sending "turn ${onOrOff}" payload to light/group name "${light.name}" id ${light.zid}`);
@@ -147,8 +143,9 @@ function Ring(refreshToken) {
     this.refreshToken = auth.refresh_token;
 
     const getAccessToken = (cb) => {
+        log ('...Getting access token');
         api.getAccesToken(this.refreshToken, (err, at) => {
-            if (err || !at) return cb('error getting access token ' + err);
+            if (err || !at) return cb('error getting access token (try getting another refresh token?): ' + err);
             writeRefreshToken(at);
             this.accessToken = at.access_token;
             this.refreshToken = at.refresh_token;
@@ -158,13 +155,7 @@ function Ring(refreshToken) {
 
     this.getAllLights = (cb) => {
         async.waterfall([
-            (cb) => {
-                log('...Getting access token');
-                getAccessToken((err) => {
-                    if (err) return cb('error getting access token ' + err);
-                    return cb();
-                });
-            },
+            (cb) => getAccessToken(cb),
             (cb) => {
                 getAllLights(this.accessToken,(err, data) => {
                     api.closeSockets();
@@ -177,13 +168,7 @@ function Ring(refreshToken) {
     //In order to turn on or off, we need to get all devices. This process opens up the websocket to the bridge required for the websocket asynchronous API.
     this.switchLight = (name, onOrOff, cb) => {
         async.waterfall([
-            (cb) => {
-                log('...Getting access token');
-                getAccessToken((err) => {
-                    if (err) return cb('error getting access token ' + err);
-                    return cb();
-                });
-            },
+            (cb) => getAccessToken(cb),
             (cb) => {
                 getAllLights(this.accessToken, (err, res) => {
                     if (err) return cb(err);
