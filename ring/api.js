@@ -65,7 +65,6 @@ exports.getTicketUrl = (accessToken, locationId, cb) => {
         } else {
             return cb('no "tickets" found');
         }
-
     });
 };
 
