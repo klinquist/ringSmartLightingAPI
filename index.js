@@ -17,12 +17,20 @@ app.listen(httpPort, () => {
     log(`Server running.  Visit http://${ip}:${httpPort}/devices for a list of your lights`);
 });
 
-const generateHtml = (arr, end) => {
+const generateDiscoverHtml = (arr, end) => {
     let html = '<html> <body>';
     for (let i = 0; i < arr.length; i++){
         html += `Light name: <B>${arr[i]}</b>    Turn on via: <a href="/devices/${arr[i]}/on">http://${ip}:${httpPort}/devices/${arr[i]}/on</a>  Turn off via:  <a href="/devices/${arr[i]}/off">http://${ip}:${httpPort}/devices/${arr[i]}/off</a><br>`;
     }
     html+=`<p><i>DiscoverLights request took ${end} seconds.</i></p>`;
+    html += '</body></html>';
+    return html;
+};
+
+const generateToggleSuccessHtml = (device, onOrOff, end) => {
+    let html = '<html> <body>';
+    html += `Light name: <B>${device}</b>  Successfully turned ${onOrOff}<br>`;
+    html += `<p><i>Light on/off request took ${end} seconds.</i></p>`;
     html += '</body></html>';
     return html;
 };
@@ -34,7 +42,7 @@ app.get('/devices', (req, res) => {
         const names = data.map(n => n.name);
         log(`Discovered lights: ${names.join(', ')}`);
         const end = logTimeEnd('getDevices');
-        res.send(generateHtml(names, end));
+        res.send(generateDiscoverHtml(names, end));
     });
 });
 
@@ -48,7 +56,7 @@ app.get('/devices/:deviceName/on', (req, res) => {
             return res.status(404).send(err);
         }
         if (data.msg == 'DeviceInfoSet') {
-            res.send(`Successfully turned on. Request took ${end} seconds.`);
+            res.send(generateToggleSuccessHtml(req.params.deviceName, 'on', end));
         } else {
             log('Unrecognized response to turn on command: ' + JSON.stringify(data));
             res.send('Unknown response');
@@ -67,7 +75,7 @@ app.get('/devices/:deviceName/off', (req, res) => {
         }
         if (data.msg == 'DeviceInfoSet') {
             log('Success');
-            res.send(`Successfully turned off. Request took ${end} seconds.`);
+            res.send(generateToggleSuccessHtml(req.params.deviceName, 'off', end));
         } else {
             log('Unrecognized response to turn off command: ' + JSON.stringify(data));
             res.send('Unknown response');
