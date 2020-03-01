@@ -177,7 +177,7 @@ function Ring(refreshToken) {
                     const lights = [];
                     for (let i = 0; i < name.length; i++){
                         for (let p = 0; p < res.length; p++) {
-                            if (res[p].name.tpUpperCase() == name[i].toUpperCase()) lights.push(res[p]);
+                            if (res[p].name.toUpperCase() == name[i].toUpperCase()) lights.push(res[p]);
                         }
                     }
                     if (lights.length == 0) return cb('Light or group with this name not found');

@@ -66,11 +66,11 @@ app.get('/devices/:deviceName/on', (req, res) => {
             log('Error turning on "' + req.params.deviceName + '" : ' + err);
             return res.status(404).send(err);
         }
-        if (data[0].msg == 'DeviceInfoSet') {
+        if (req.params.deviceName.split(',').length == data.length && data[0].msg == 'DeviceInfoSet') {
             res.send(generateToggleSuccessHtml(req.params.deviceName, 'on', end));
         } else {
             log('Unrecognized response to turn on command: ' + JSON.stringify(data));
-            res.send('Unknown response');
+            res.send('Could not turn on one or more lights (or a light was not found)');
         }
     });
 });
@@ -84,12 +84,12 @@ app.get('/devices/:deviceName/off', (req, res) => {
             log('Error turning off "' + req.params.deviceName + '" : ' + err);
             return res.status(404).send(err);
         }
-        if (data[0].msg == 'DeviceInfoSet') {
+        if (req.params.deviceName.split(',').length == data.length && data[0].msg == 'DeviceInfoSet') {
             log('Success');
             res.send(generateToggleSuccessHtml(req.params.deviceName, 'off', end));
         } else {
             log('Unrecognized response to turn off command: ' + JSON.stringify(data));
-            res.send('Unknown response');
+            res.send('Could not turn off one or more lights (or a light with a provided name was not found)');
         }
     });
 });
