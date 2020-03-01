@@ -174,13 +174,15 @@ function Ring(refreshToken) {
                 getAllLights(this.accessToken, (err, res) => {
                     if (err) return cb(err);
                     name = name.split(',');
+                    const lights = [];
                     for (let i = 0; i < name.length; i++){
-                        name[i] = name[i].toUpperCase();
+                        for (let p = 0; p < res.length; p++) {
+                            if (res[p].name.tpUpperCase() == name[i].toUpperCase()) lights.push(res[p]);
+                        }
                     }
-                    res = res.filter(n => name.indexOf(n.name.toUpperCase()) > -1);
-                    if (res.length == 0) return cb('Light or group with this name not found');
+                    if (lights.length == 0) return cb('Light or group with this name not found');
                     //To turn a device on, send the entire device object to the turnOn command.
-                    toggleLight(res, onOrOff, (err, res) => {
+                    toggleLight(lights, onOrOff, (err, res) => {
                         api.closeSockets();
                         return cb(err, res);
                     });
