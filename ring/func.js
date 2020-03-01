@@ -103,18 +103,20 @@ const getAllLights = (accessToken, cb) => {
     });
 };
 
-const toggleLight = (light, onOrOff, cb) => {
-    async.series([
-        (cb) => api.openSocket(light.socket_url, cb),
-        (cb) => {
-            const payload = getSwitchPayload(light.zid, light.location_uuid, onOrOff);
-            log(`...Sending "turn ${onOrOff}" payload to light/group name "${light.name}" id ${light.zid}`);
-            api.send(light.socket_url, payload, cb);
-        }
-    ], (err, res) => {
-        if (err) return cb(err);
-        return cb(null, res[1][0]);
-    });
+const toggleLight = (lights, onOrOff, cb) => {
+    async.mapSeries(lights, (light, cb) => {
+        async.series([
+            (cb) => api.openSocket(light.socket_url, cb),
+            (cb) => {
+                const payload = getSwitchPayload(light.zid, light.location_uuid, onOrOff);
+                log(`...Sending "turn ${onOrOff}" payload to light/group name "${light.name}" id ${light.zid}`);
+                api.send(light.socket_url, payload, cb);
+            }
+        ], (err, res) => {
+            if (err) return cb(err);
+            return cb(null, res[1][0]);
+        });
+    }, cb);
 };
 
 function Ring(refreshToken) {
@@ -171,10 +173,14 @@ function Ring(refreshToken) {
             (cb) => {
                 getAllLights(this.accessToken, (err, res) => {
                     if (err) return cb(err);
-                    res = res.filter(n => n.name.toUpperCase() == name.toUpperCase());
+                    name = name.split(',');
+                    for (let i = 0; i < name.length; i++){
+                        name[i] = name[i].toUpperCase();
+                    }
+                    res = res.filter(n => name.indexOf(n.name.toUpperCase()) > -1);
                     if (res.length == 0) return cb('Light or group with this name not found');
                     //To turn a device on, send the entire device object to the turnOn command.
-                    toggleLight(res[0], onOrOff, (err, res) => {
+                    toggleLight(res, onOrOff, (err, res) => {
                         api.closeSockets();
                         return cb(err, res);
                     });

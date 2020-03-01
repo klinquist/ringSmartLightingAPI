@@ -60,8 +60,14 @@ Lights stay on for the default duration.  I currently do not support other durat
 
 `GET http://localhost:3000/devices/deviceName/off`
 
-(i.e. `http://192.168.1.31:3000/devices/Front Porch/off`)
+(i.e. `http://localhost:3000/devices/Front Porch/off`)
 
+
+**Turn on/off multiple lights at once**
+
+Separate light names with a comma
+
+(i.e. `http://localhost:3000/devices/Front Porch,Entryway/on`)
 
 
 
