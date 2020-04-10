@@ -1,3 +1,7 @@
+//uncomment these lines if you want to use mqtt!
+//const mqttHost = '127.0.0.1';
+//const mqttBaseTopic = 'home/ringlighting';
+
 const httpPort = 3000;
 const utils = require('./ring/utils');
 const ip = utils.myIp;
@@ -41,6 +45,60 @@ const generateToggleSuccessHtml = (device, onOrOff, end) => {
     html += '</body></html>';
     return html;
 };
+
+
+if (typeof mqttHost !== 'undefined') {
+    const mqttSubTopic = `${mqttBaseTopic}/command/#`;
+    log(`Subscribing to ${mqttSubTopic}`);
+    log(`To turn on a light via MQTT, publish \'on\' or \'off\' to ${mqttBaseTopic}/command/LIGHTNAME`);
+    const mqtt = require('mqtt');
+    const client = mqtt.connect(`mqtt://${mqttHost}`);
+    client.on('connect', () => {
+        client.subscribe(mqttSubTopic, (err) => {
+            if (err) log ('Error subscribing to MQTT topic');
+        });
+    });
+    client.on('message', (topic, message) => {
+        const lightName = topic.substr(topic.lastIndexOf('/') + 1);
+        if (lightName == 'discover') {
+            q.push({
+                func: 'discover'
+            }, (err, data) => {
+                if (err) {
+                    client.publish(`${mqttBaseTopic}/result/${lightName}`, err);
+                } else {
+                    const names = data.map(n => n.name);
+                    log(`Discovered lights: ${names.join(', ')}`);
+                    client.publish(`${mqttBaseTopic}/result/${lightName}`, names.join(','));
+                }
+            });
+        } else {
+            message = message.toString().toLowerCase();
+            if (message !== 'on' && message !== 'off') {
+                log('Invalid command');
+                return;
+            }
+            q.push({
+                func: 'switchLight',
+                name: lightName,
+                param: message
+            }, (err, data) => {
+                if (err) {
+                    log('Error turning on "' + lightName + '" : ' + err);
+                    return;
+                }
+                if (lightName.split(',').length == data.length && data[0].msg == 'DeviceInfoSet') {
+                    //success
+                    client.publish(`${mqttBaseTopic}/result/${lightName}/${message}`, 'success');
+                } else {
+                    client.publish(`${mqttBaseTopic}/result/${lightName}/${message}`, 'failure');
+                    log('Unrecognized response to turn on command: ' + JSON.stringify(data));
+                }
+            });
+        }
+    });
+}
+
 
 app.get('/devices', (req, res) => {
     logTimeStart('getDevices');
